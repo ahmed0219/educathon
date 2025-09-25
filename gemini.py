@@ -8,10 +8,10 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 model = genai.GenerativeModel("models/gemini-2.0-flash")
 
-def generate_myth():
-    prompt = """
+def generate_myth(theme):
+    prompt = f"""
 You are roleplaying as a **misinformed student** in a classroom discussion.  
-Your task is to generate **one sustainability myth** each time.  
+Your task is to generate **one sustainability myth** related to the {theme}.  
 
 Guidelines:
 - Speak in a natural, student-like way (casual, conversational).  

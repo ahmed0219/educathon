@@ -4,6 +4,7 @@ from evaluation import evaluate_response
 import json
 import sqlite3
 from setup_db import setup_db
+import random
 
 st.set_page_config(page_title="♻️ Sustainability Myth-Busting Chatbot", page_icon="🌱")
 st.title("♻️ Sustainability Myth-Busting Chatbot")
@@ -22,6 +23,13 @@ if "badges" not in st.session_state:
     st.session_state.badges = []
 if "user" not in st.session_state:
     st.session_state.user = None
+
+themes = ["Energy Myths", "Recycling Myths", "Water Myths", "Transport Myths"]
+predefined_myths = [
+    "Recycling plastic always saves the environment.",
+    "Electric cars are worse than gasoline cars.",
+    "Turning off lights at night barely saves energy."
+]
 
 # --- Login / Register ---
 def login_user(username, password):
@@ -66,9 +74,21 @@ if not st.session_state.user:
             st.error("Username already exists.")
     st.stop()
 
-# --- Myth Generation ---
+# --- Determine current theme based on level ---
+def get_current_theme():
+    return themes[(st.session_state.level - 1) % len(themes)]
+
+# --- Safe myth generator ---
+def safe_generate_myth():
+    current_theme = get_current_theme()
+    try:
+        return generate_myth(theme=current_theme)
+    except Exception:
+        return random.choice(predefined_myths)
+
+# --- Generate first myth ---
 if st.session_state.myth is None:
-    st.session_state.myth = generate_myth()
+    st.session_state.myth = safe_generate_myth()
     st.session_state.messages.append({
         "role": "assistant",
         "content": f"Here’s a sustainability myth for you to bust:\n\n**{st.session_state.myth}**"
@@ -84,11 +104,14 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # --- Scoreboard / Progress Bar ---
+current_theme = get_current_theme()
 st.sidebar.header("🏅 Your Progress")
 st.sidebar.metric("Total Score", st.session_state.score)
 max_score = st.session_state.level * 50  # each level needs 50 points
 st.sidebar.progress(min(st.session_state.score / max_score, 1.0))
 st.sidebar.write(f"Level: {st.session_state.level}")
+st.sidebar.write(f"🌿 Current Theme: {current_theme}")
+st.sidebar.write(f"🔮 Next Theme Unlock: {themes[st.session_state.level % len(themes)]}")
 
 if st.session_state.badges:
     st.sidebar.write("🎖️ Badges Earned:")
@@ -99,17 +122,27 @@ if st.session_state.badges:
 if user_input := st.chat_input("Correct the myth with evidence..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
 
-    eval_result = evaluate_response(user_input, st.session_state.myth)
+    try:
+        eval_result = evaluate_response(user_input, st.session_state.myth)
+        if isinstance(eval_result, str):
+            eval_result = json.loads(eval_result)
+    except Exception:
+        eval_result = {
+            "correctness": False, "clarity": 0, "tone": 0, "evidence": 0,
+            "points": 0, "badge": "Myth Apprentice", "level_up": False,
+            "feedback": "Error evaluating. Try rephrasing your answer.",
+            "PPP_alignment": []
+        }
 
-    # Parse JSON if string
-    if isinstance(eval_result, str):
-        eval_result = json.loads(eval_result)
+    # Bonus feedback for citation
+    if "according to" not in user_input.lower() and eval_result['evidence'] > 2:
+        eval_result['feedback'] += " Tip: Cite a source like UNEP, IPCC, or a scientific study to strengthen your response."
 
     # Update score
     points = eval_result.get("points", 0)
     st.session_state.score += points
 
-    # Level up if needed
+    # Level up
     if eval_result.get("level_up"):
         st.session_state.level += 1
 
@@ -131,6 +164,7 @@ if user_input := st.chat_input("Correct the myth with evidence..."):
             f"- ✨ Clarity: {clarity_stars}\n"
             f"- 🤝 Tone: {tone_stars}\n"
             f"- 📚 Evidence: {evidence_stars}\n"
+            #f"- 🌍 P/P/P Alignment: {', '.join(eval_result.get('PPP_alignment', []))}\n"
             f"- 🏆 Points Earned: {points}\n"
             f"- 🎖️ Badge: {eval_result['badge']}\n"
             f"- 🚀 Level Up: {eval_result['level_up']}\n"
@@ -140,7 +174,7 @@ if user_input := st.chat_input("Correct the myth with evidence..."):
     })
 
     # Next myth
-    st.session_state.myth = generate_myth()
+    st.session_state.myth = safe_generate_myth()
     st.session_state.messages.append({
         "role": "assistant",
         "content": f"Here’s your next myth:\n\n**{st.session_state.myth}**"
