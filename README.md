@@ -27,7 +27,7 @@ The app includes a leaderboard for friendly competition.
 
 ## 📸 Demo
 
-![Demo Screenshot](demo.png)  
+![Demo Screenshot](demo.jpeg)  
 *(Replace with an actual screenshot once available)*
 
 ---
